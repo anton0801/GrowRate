@@ -9,8 +9,8 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.growedrate.GrowRate
-     vars:
-          APP_STORE_CONNECT_KEY: grow_rate
+      vars:
+        APP_STORE_CONNECT_KEY: grow_rate
         APP_STORE_APPLE_ID: 6783496215
         BUNDLE_ID: "com.growedrate.GrowRate"
         XCODE_PROJECT: "GrowRate.xcodeproj"

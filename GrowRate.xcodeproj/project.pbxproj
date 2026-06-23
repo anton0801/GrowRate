@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		EEF6D6662FEB24ED00992674 /* codemagic.yaml in Resources */ = {isa = PBXBuildFile; fileRef = EEF6D6652FEB24ED00992674 /* codemagic.yaml */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		EE560E962FE18CCF00D98933 /* GrowRate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GrowRate.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EEF6D6652FEB24ED00992674 /* codemagic.yaml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = codemagic.yaml; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -45,6 +50,7 @@
 		EE560E8D2FE18CCF00D98933 = {
 			isa = PBXGroup;
 			children = (
+				EEF6D6652FEB24ED00992674 /* codemagic.yaml */,
 				EE560E982FE18CCF00D98933 /* GrowRate */,
 				EE560E972FE18CCF00D98933 /* Products */,
 			);
@@ -122,6 +128,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EEF6D6662FEB24ED00992674 /* codemagic.yaml in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -43,6 +43,24 @@ struct PhotoMarker: Identifiable, Codable, Equatable {
     var caption: String = ""
 }
 
+enum Blight: Error {
+    case barren(at: String)
+    case crookedStem(at: String)
+    case severed(stage: String)
+    case parched(cooldown: TimeInterval)
+    case fallow(httpCode: Int)
+    case rotted(reason: String)
+    case mottled(at: String)
+
+    var dead: Bool {
+        switch self {
+        case .fallow, .rotted: return true
+        default: return false
+        }
+    }
+}
+
+
 // MARK: - Batch
 
 struct Batch: Identifiable, Codable, Equatable {

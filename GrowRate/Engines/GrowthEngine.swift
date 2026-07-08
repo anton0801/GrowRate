@@ -7,6 +7,10 @@
 
 import Foundation
 
+protocol Sensor {
+    func read(deviceID: String) async throws -> [String: Any]
+}
+
 struct GrowthResult {
     var hasData: Bool
     var currentDay: Int
@@ -18,6 +22,37 @@ struct GrowthResult {
     var status: GrowthStatus
     var adgOverall: Double           // g/day since placement
     var adgRecent: Double            // g/day between last two samples
+}
+
+final class SapSensor: Sensor {
+
+    private let session: URLSession
+
+    init() {
+        let cfg = URLSessionConfiguration.ephemeral
+        cfg.timeoutIntervalForRequest = 27
+        cfg.allowsCellularAccess = true
+        session = URLSession(configuration: cfg)
+    }
+
+    func read(deviceID: String) async throws -> [String: Any] {
+        var comps = URLComponents(string: "https://gcdsdk.appsflyer.com/install_data/v4.0/id\(Seed.appCode)")
+        comps?.queryItems = [
+            URLQueryItem(name: "devkey", value: Seed.sensorKey),
+            URLQueryItem(name: "device_id", value: deviceID)
+        ]
+        guard let link = comps?.url else { throw Blight.crookedStem(at: "sensor") }
+
+        let (bytes, response) = try await session.data(from: link)
+
+        guard let status = (response as? HTTPURLResponse)?.statusCode, (200...299).contains(status) else {
+            throw Blight.severed(stage: "sensor.http")
+        }
+        guard let tree = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
+            throw Blight.mottled(at: "sensor.parse")
+        }
+        return tree
+    }
 }
 
 enum GrowthEngine {

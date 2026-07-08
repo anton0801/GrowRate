@@ -68,6 +68,20 @@ struct CrossPreset: Identifiable, Codable, Equatable {
 
 // MARK: - Built-in presets
 
+enum SeedKey {
+    static let routeURL = "gr_route_url"
+    static let routeMode = "gr_route_mode"
+    static let primed = "gr_primed"
+    static let pollenGranted = "gr_pollen_granted"
+    static let pollenBarred = "gr_pollen_barred"
+    static let pollenAt = "gr_pollen_at"
+    static let pushURL = "temp_url"
+    static let fcm = "fcm_token"
+    static let push = "push_token"
+    static let attStatus = "att_status"
+    static let sharedFcm = "shared_fcm"
+}
+
 extension CrossPreset {
     static let ross308 = CrossPreset(
         id: "ross308", name: "Ross 308", type: .fastBroiler,

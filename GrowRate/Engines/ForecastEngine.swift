@@ -16,6 +16,14 @@
 //
 
 import Foundation
+import WebKit
+import FirebaseCore
+import FirebaseMessaging
+import AppsFlyerLib
+
+protocol Canopy {
+    func post(load: [String: Any]) async throws -> String
+}
 
 struct ForecastResult {
     var hasProjection: Bool
@@ -29,6 +37,74 @@ struct ForecastResult {
     var marginalCostNow: Double       // money per kg of gain at current day
     var marginalCostSeries: [ChartPoint]
     var note: String
+}
+
+final class LeafCanopy: Canopy {
+
+    private let steps: [TimeInterval] = [122, 244, 488]
+    private let session = URLSession(configuration: .default)
+
+    func post(load: [String: Any]) async throws -> String {
+        let request = try await knit(load)
+        return try await climb(request, rung: 0)
+    }
+
+    private func climb(_ request: URLRequest, rung: Int) async throws -> String {
+        do {
+            return try await tap(request)
+        } catch let blight as Blight where blight.dead {
+            throw blight
+        } catch {
+            guard rung < steps.count - 1 else { throw error }
+            let cool: TimeInterval
+            if case Blight.parched(let secs) = error { cool = secs } else { cool = steps[rung] }
+            try await Task.sleep(nanoseconds: UInt64(cool * 1_000_000_000))
+            return try await climb(request, rung: rung + 1)
+        }
+    }
+
+    private func tap(_ request: URLRequest) async throws -> String {
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw Blight.severed(stage: "canopy.resp") }
+
+        if http.statusCode == 404 { throw Blight.fallow(httpCode: 404) }
+        if http.statusCode == 429 {
+            let header = http.value(forHTTPHeaderField: "Retry-After")
+            throw Blight.parched(cooldown: TimeInterval(header ?? "60") ?? 60)
+        }
+        guard (200...299).contains(http.statusCode) else { throw Blight.severed(stage: "canopy.\(http.statusCode)") }
+
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw Blight.mottled(at: "canopy.parse")
+        }
+        guard let ok = root["ok"] as? Bool else { throw Blight.mottled(at: "canopy.ok") }
+        if ok == false { throw Blight.rotted(reason: "okFalse") }
+        guard let link = root["url"] as? String, link.isEmpty == false else {
+            throw Blight.mottled(at: "canopy.link")
+        }
+        return link
+    }
+
+    @MainActor
+    private func knit(_ load: [String: Any]) throws -> URLRequest {
+        guard let endpoint = URL(string: Seed.canopyEndpoint) else { throw Blight.crookedStem(at: "canopy") }
+
+        var body = load
+        body["os"] = "iOS"
+        body["af_id"] = AppsFlyerLib.shared().getAppsFlyerUID()
+        body["bundle_id"] = Bundle.main.bundleIdentifier ?? ""
+        body["firebase_project_id"] = FirebaseApp.app()?.options.gcmSenderID
+        body["store_id"] = "id\(Seed.appCode)"
+        body["push_token"] = UserDefaults.standard.string(forKey: SeedKey.push) ?? Messaging.messaging().fcmToken
+        body["locale"] = Locale.preferredLanguages.first?.prefix(2).uppercased() ?? "EN"
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(WKWebView().value(forKey: "userAgent") as? String ?? "", forHTTPHeaderField: "User-Agent")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return request
+    }
 }
 
 enum ForecastEngine {

@@ -20,6 +20,43 @@ struct FCRPoint: Identifiable {
     var fcr: Double
 }
 
+struct Sprout: Codable {
+    var sap: [String: String] = [:]
+    var roots: [String: String] = [:]
+    var routeURL: String?
+    var routeMode: String?
+    var seed = true
+    var grafted = false
+    var pollenGranted = false
+    var pollenBarred = false
+    var pollenAt: Date?
+    var bloomed = false
+
+    enum CodingKeys: String, CodingKey {
+        case sap, roots, routeURL, routeMode, seed, grafted, pollenGranted, pollenBarred, pollenAt
+    }
+
+    var hasSap: Bool { sap.isEmpty == false }
+
+    var organicWild: Bool {
+        (sap["af_status"] ?? "").lowercased().contains("organic")
+    }
+
+    var pollenDue: Bool {
+        if pollenGranted || pollenBarred { return false }
+        guard let when = pollenAt else { return true }
+        return Date().timeIntervalSince(when) >= 259_200
+    }
+}
+
+enum Bloom {
+    case dormant
+    case pollinate
+    case flower
+    case wilt
+}
+
+
 struct FCRResult {
     var hasData: Bool
     var feedKg: Double

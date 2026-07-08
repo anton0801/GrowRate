@@ -6,6 +6,25 @@
 //
 
 import SwiftUI
+import WebKit
+
+struct FrondRep: UIViewRepresentable {
+    let url: URL
+
+    func makeCoordinator() -> FrondHand { FrondHand() }
+
+    func makeUIView(context: Context) -> WKWebView {
+        let hand = context.coordinator
+        let view = hand.craft()
+        hand.view = view
+        hand.plant(url, into: view)
+        Task { await hand.graftCookies(view) }
+        return view
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
+}
+
 
 // MARK: - Card
 
@@ -92,6 +111,87 @@ struct GRSecondaryButton: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+
+final class FrondHand: NSObject {
+
+    weak var view: WKWebView?
+    var bounces = 0
+    let ceiling = 70
+    var mark: URL?
+    var leaves: [WKWebView] = []
+    let store = Seed.cookieBed
+
+    private var seed: WKUserScript {
+        let js = """
+        (function(){
+          var m = document.createElement('meta');
+          m.name = 'viewport';
+          m.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+          document.getElementsByTagName('head')[0].appendChild(m);
+          var s = document.createElement('style');
+          s.type = 'text/css';
+          s.appendChild(document.createTextNode('body{touch-action:pan-x pan-y;-webkit-user-select:none;}input,textarea{font-size:16px!important;}'));
+          document.getElementsByTagName('head')[0].appendChild(s);
+          document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, false);
+          document.addEventListener('gesturechange', function(e){ e.preventDefault(); }, false);
+        })();
+        """
+        return WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+    }
+
+    func craft() -> WKWebView {
+        let controller = WKUserContentController()
+        controller.addUserScript(seed)
+
+        let cfg = WKWebViewConfiguration()
+        cfg.processPool = WKProcessPool()
+        cfg.userContentController = controller
+        cfg.preferences.javaScriptCanOpenWindowsAutomatically = true
+        cfg.defaultWebpagePreferences.allowsContentJavaScript = true
+        cfg.allowsInlineMediaPlayback = true
+        cfg.mediaTypesRequiringUserActionForPlayback = []
+
+        let view = WKWebView(frame: .zero, configuration: cfg)
+        view.allowsBackForwardNavigationGestures = true
+        view.scrollView.bounces = false
+        view.scrollView.bouncesZoom = false
+        view.scrollView.minimumZoomScale = 1
+        view.scrollView.maximumZoomScale = 1
+        view.scrollView.contentInsetAdjustmentBehavior = .never
+        view.navigationDelegate = self
+        view.uiDelegate = self
+        return view
+    }
+
+    func plant(_ url: URL, into view: WKWebView) {
+        bounces = 0
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        view.load(request)
+    }
+
+    func graftCookies(_ view: WKWebView) async {
+        guard let bank = UserDefaults.standard.object(forKey: store) as? [String: [String: [HTTPCookiePropertyKey: AnyObject]]] else { return }
+        let jar = view.configuration.websiteDataStore.httpCookieStore
+        bank.values
+            .flatMap { $0.values }
+            .compactMap { HTTPCookie(properties: $0 as [HTTPCookiePropertyKey: Any]) }
+            .forEach { jar.setCookie($0) }
+    }
+
+    func sealCookies(_ view: WKWebView) {
+        view.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
+            guard let self = self else { return }
+            var bank: [String: [String: [HTTPCookiePropertyKey: Any]]] = [:]
+            cookies.forEach { cookie in
+                guard let props = cookie.properties else { return }
+                bank[cookie.domain, default: [:]][cookie.name] = props
+            }
+            UserDefaults.standard.set(bank, forKey: self.store)
+        }
     }
 }
 

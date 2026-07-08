@@ -38,6 +38,13 @@ enum CrossType: String, Codable, CaseIterable, Identifiable {
 
 // MARK: - Weight unit (storage is always grams)
 
+
+extension Notification.Name {
+    static let sapIn = Notification.Name("ConversionDataReceived")
+    static let rootsIn = Notification.Name("deeplink_values")
+    static let bedWake = Notification.Name("LoadTempURL")
+}
+
 enum WeightUnit: String, Codable, CaseIterable, Identifiable {
     case gram, kilogram, pound
     var id: String { rawValue }

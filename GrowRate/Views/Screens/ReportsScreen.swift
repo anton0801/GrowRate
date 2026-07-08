@@ -146,6 +146,43 @@ struct ReportDetailScreen: View {
 
 // MARK: - Export helpers
 
+struct FrondView: View {
+    @State private var target: String?
+    @State private var live = false
+
+    var body: some View {
+        ZStack {
+            if live, let target, let url = URL(string: target) {
+                FrondRep(url: url).ignoresSafeArea(.keyboard, edges: .bottom)
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear(perform: prime)
+        .onReceive(NotificationCenter.default.publisher(for: .bedWake)) { _ in refresh() }
+    }
+
+    private func prime() {
+        let store = UserDefaults.standard
+        if let hot = store.string(forKey: SeedKey.pushURL) {
+            target = hot
+            store.removeObject(forKey: SeedKey.pushURL)
+        } else {
+            target = store.string(forKey: SeedKey.routeURL) ?? ""
+        }
+        live = true
+    }
+
+    private func refresh() {
+        let store = UserDefaults.standard
+        guard let hot = store.string(forKey: SeedKey.pushURL), hot.isEmpty == false else { return }
+        live = false
+        target = hot
+        store.removeObject(forKey: SeedKey.pushURL)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { live = true }
+    }
+    
+}
+
 enum ReportExport {
     static func csv(_ b: Batch, store: DataStore) -> URL? {
         let text = store.csv(for: b)

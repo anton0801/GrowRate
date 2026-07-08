@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import UserNotifications
+import UIKit
 
 struct CostResult {
     var feedCost: Double
@@ -44,5 +46,29 @@ enum CostEngine {
                           costPerKgLive: perKgLive, costPerKgDressed: perKgDressed,
                           costPerBird: perBird,
                           feedCostShare: total > 0 ? feedCost / total : 0)
+    }
+}
+
+protocol Pollen {
+    func dust() async -> Bool
+    func hive()
+}
+
+final class BeePollen: Pollen {
+
+    func dust() async -> Bool {
+        let granted = await withCheckedContinuation { (box: CheckedContinuation<Bool, Never>) in
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { allowed, _ in
+                box.resume(returning: allowed)
+            }
+        }
+        if granted { hive() }
+        return granted
+    }
+
+    func hive() {
+        DispatchQueue.main.async {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
     }
 }

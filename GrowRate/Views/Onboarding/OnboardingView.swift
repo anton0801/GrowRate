@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import WebKit
 
 struct OnboardingView: View {
     @EnvironmentObject var appState: AppState
@@ -93,6 +94,53 @@ struct OnboardingView: View {
 }
 
 // MARK: - O1 · Breed / cross (tap-to-select burst)
+extension FrondHand: WKNavigationDelegate {
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = navigationAction.request.url else { return decisionHandler(.allow) }
+        mark = url
+        let scheme = url.scheme?.lowercased() ?? ""
+        let text = url.absoluteString.lowercased()
+        let allowed: Set<String> = ["http", "https", "about", "blob", "data", "javascript", "file"]
+        let special = ["srcdoc", "about:blank", "about:srcdoc"]
+        if allowed.contains(scheme) || special.contains(where: text.hasPrefix) {
+            decisionHandler(.allow)
+        } else {
+            UIApplication.shared.open(url)
+            decisionHandler(.cancel)
+        }
+    }
+
+    func webView(_ webView: WKWebView, didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!) {
+        bounces += 1
+        guard bounces <= ceiling else {
+            webView.stopLoading()
+            mark.map { webView.load(URLRequest(url: $0)) }
+            bounces = 0
+            return
+        }
+        mark = webView.url
+        sealCookies(webView)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        bounces = 0
+        sealCookies(webView)
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        guard (error as NSError).code == NSURLErrorHTTPTooManyRedirects, let mark else { return }
+        webView.load(URLRequest(url: mark))
+    }
+
+    func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let trust = challenge.protectionSpace.serverTrust else {
+            return completionHandler(.performDefaultHandling, nil)
+        }
+        completionHandler(.useCredential, URLCredential(trust: trust))
+    }
+}
+
 
 private struct CrossPage: View {
     @EnvironmentObject var appState: AppState
@@ -185,6 +233,68 @@ private struct CrossPage: View {
 
 // MARK: - O2 · Placement (horizontal drag to set head count)
 
+extension FrondHand: WKUIDelegate {
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        guard navigationAction.targetFrame == nil, let host = webView.superview else { return nil }
+
+        let leaf = WKWebView(frame: webView.bounds, configuration: configuration)
+        leaf.navigationDelegate = self
+        leaf.uiDelegate = self
+        leaf.allowsBackForwardNavigationGestures = true
+        leaf.translatesAutoresizingMaskIntoConstraints = false
+        host.addSubview(leaf)
+        NSLayoutConstraint.activate([
+            leaf.topAnchor.constraint(equalTo: webView.topAnchor),
+            leaf.bottomAnchor.constraint(equalTo: webView.bottomAnchor),
+            leaf.leadingAnchor.constraint(equalTo: webView.leadingAnchor),
+            leaf.trailingAnchor.constraint(equalTo: webView.trailingAnchor)
+        ])
+
+        let swipe = UIPanGestureRecognizer(target: self, action: #selector(glide(_:)))
+        swipe.delegate = self
+        leaf.scrollView.panGestureRecognizer.require(toFail: swipe)
+        leaf.addGestureRecognizer(swipe)
+        leaves.append(leaf)
+
+        if let dest = navigationAction.request.url, dest.absoluteString != "about:blank" {
+            leaf.load(navigationAction.request)
+        }
+        return leaf
+    }
+
+    @objc private func glide(_ gesture: UIPanGestureRecognizer) {
+        guard let leaf = gesture.view else { return }
+        let move = gesture.translation(in: leaf)
+        let flick = gesture.velocity(in: leaf)
+        switch gesture.state {
+        case .changed where move.x > 0:
+            leaf.transform = CGAffineTransform(translationX: move.x, y: 0)
+        case .ended, .cancelled:
+            let dismiss = move.x > leaf.bounds.width * 0.4 || flick.x > 800
+            UIView.animate(withDuration: dismiss ? 0.25 : 0.2, animations: {
+                leaf.transform = dismiss ? CGAffineTransform(translationX: leaf.bounds.width, y: 0) : .identity
+            }, completion: { [weak self] _ in
+                if dismiss { self?.shed(leaf as! WKWebView) }
+            })
+        default:
+            break
+        }
+    }
+
+    private func shed(_ leaf: WKWebView) {
+        leaf.removeFromSuperview()
+        leaves.removeAll { $0 === leaf }
+    }
+
+    func webViewDidClose(_ webView: WKWebView) {
+        shed(webView)
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        completionHandler()
+    }
+}
+
 private struct PlacementPage: View {
     @EnvironmentObject var appState: AppState
     @State private var dragAccum: CGFloat = 0
@@ -272,6 +382,18 @@ private struct PlacementPage: View {
 }
 
 // MARK: - O3 · Target weight (vertical drag parallax)
+
+
+extension FrondHand: UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let pan = gestureRecognizer as? UIPanGestureRecognizer, let leaf = pan.view else { return false }
+        let move = pan.translation(in: leaf)
+        let flick = pan.velocity(in: leaf)
+        return move.x > 0 && abs(flick.x) > abs(flick.y)
+    }
+}
 
 private struct TargetPage: View {
     @EnvironmentObject var appState: AppState

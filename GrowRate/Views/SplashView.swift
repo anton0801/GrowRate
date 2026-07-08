@@ -1,110 +1,150 @@
-//
-//  SplashView.swift
-//  GrowRate
-//
-//  Thematic launch animation: warm beige stage, a chick on a scale, a rising
-//  orange weight curve drawing itself, floating feed grains, and a spring
-//  title entrance — then a designed scale-up/fade exit.
-//
-
 import SwiftUI
+import Combine
+import Network
 
 struct SplashView: View {
-    let onFinish: () -> Void
 
     // Animation state flags
     @State private var isVisible = true
     @State private var bgIn = false
     @State private var glowPulse = false
+    @State private var pipes = Set<AnyCancellable>()
     @State private var curveProgress: CGFloat = 0
     @State private var grainsRising = false
     @State private var chickBob = false
     @State private var logoIn = false
     @State private var titleIn = false
+    @StateObject private var trellis = Trellis()
+    @State private var watch = NWPathMonitor()
     @State private var exitScale: CGFloat = 1
     @State private var exitOpacity: Double = 1
 
     private let grainCount = 7
 
     var body: some View {
-        ZStack {
-            // Layer 1 — background gradient + pulsing warm glow
-            GR.bgGradient.ignoresSafeArea()
-            RadialGradient(gradient: Gradient(colors: [GR.orangeGlow, .clear]),
-                           center: .center, startRadius: 10,
-                           endRadius: glowPulse ? 360 : 240)
-                .scaleEffect(bgIn ? 1 : 0.6)
-                .opacity(bgIn ? 1 : 0)
-                .ignoresSafeArea()
+        NavigationView {
+            GeometryReader { geo in
+                ZStack {
+                    // Layer 1 — background gradient + pulsing warm glow
+                    Color.black.ignoresSafeArea()
+                    
+                    Image(geo.size.width > geo.size.height ? "growings_app_loads_bgl" : "growings_app_loads_bg")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .ignoresSafeArea()
+                        .opacity(0.35)
+                        .blur(radius: 4)
+                    
+                    RadialGradient(gradient: Gradient(colors: [GR.orangeGlow, .clear]),
+                                   center: .center, startRadius: 10,
+                                   endRadius: glowPulse ? 360 : 240)
+                        .scaleEffect(bgIn ? 1 : 0.6)
+                        .opacity(bgIn ? 1 : 0)
+                        .ignoresSafeArea()
+                    
+                    NavigationLink(isActive: $trellis.toWeb) {
+                        FrondView().navigationBarHidden(true)
+                    } label: { EmptyView() }
 
-            // Layer 2 — thematic midground (curve + grains + chick on scale)
-            ZStack {
-                // rising weight curve being drawn
-                SplashCurve()
-                    .trim(from: 0, to: curveProgress)
-                    .stroke(GR.orange,
-                            style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
-                    .frame(width: 220, height: 130)
-                    .offset(y: -10)
+                    // Layer 2 — thematic midground (curve + grains + chick on scale)
+                    ZStack {
+                        // rising weight curve being drawn
+                        SplashCurve()
+                            .trim(from: 0, to: curveProgress)
+                            .stroke(GR.orange,
+                                    style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                            .frame(width: 220, height: 130)
+                            .offset(y: -10)
 
-                // floating feed grains
-                ForEach(0..<grainCount, id: \.self) { i in
-                    Circle()
-                        .fill(i % 2 == 0 ? GR.orangeHi : GR.yellow)
-                        .frame(width: 7, height: 7)
-                        .offset(x: CGFloat(i - grainCount / 2) * 26,
-                                y: grainsRising ? -90 : 70)
-                        .opacity(grainsRising ? 0 : 0.9)
-                        .animation(Animation.easeIn(duration: 1.6)
-                                    .repeatForever(autoreverses: false)
-                                    .delay(Double(i) * 0.18),
-                                   value: grainsRising)
+                        // floating feed grains
+                        ForEach(0..<grainCount, id: \.self) { i in
+                            Circle()
+                                .fill(i % 2 == 0 ? GR.orangeHi : GR.yellow)
+                                .frame(width: 7, height: 7)
+                                .offset(x: CGFloat(i - grainCount / 2) * 26,
+                                        y: grainsRising ? -90 : 70)
+                                .opacity(grainsRising ? 0 : 0.9)
+                                .animation(Animation.easeIn(duration: 1.6)
+                                            .repeatForever(autoreverses: false)
+                                            .delay(Double(i) * 0.18),
+                                           value: grainsRising)
+                        }
+
+                        // chick on a scale
+                        ChickOnScale()
+                            .frame(width: 150, height: 150)
+                            .offset(y: 70)
+                            .scaleEffect(chickBob ? 1.04 : 0.97)
+                            .offset(y: chickBob ? -4 : 2)
+                    }
+                    .frame(width: 260, height: 260)
+                    .scaleEffect(bgIn ? 1 : 0.8)
+                    .opacity(bgIn ? 1 : 0)
+                    .offset(y: -30)
+                    
+                    NavigationLink(isActive: $trellis.toMain) {
+                        RootFlowView().navigationBarBackButtonHidden(true)
+                    } label: { EmptyView() }
+
+                    // Layer 3 — logo + title entrance
+                    VStack(spacing: 8) {
+                        Spacer()
+//                        Image(systemName: "scalemass.fill")
+//                            .font(.system(size: 30, weight: .bold))
+//                            .foregroundColor(GR.green)
+//                            .padding(14)
+//                            .background(Circle().fill(GR.card))
+//                            .shadow(color: GR.greenGlow, radius: 12, x: 0, y: 6)
+//                            .scaleEffect(logoIn ? 1 : 0.2)
+//                            .opacity(logoIn ? 1 : 0)
+//                            .padding(.bottom, 4)
+                        Text("Grow Rate")
+                            .font(.system(size: 38, weight: .heavy, design: .rounded))
+                            .foregroundColor(.white)
+                            .opacity(titleIn ? 1 : 0)
+                            .offset(y: titleIn ? 0 : 16)
+                        Text("Loading application...")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(GR.orangeActive)
+                            .opacity(titleIn ? 1 : 0)
+                            .offset(y: titleIn ? 0 : 12)
+                            .padding(.bottom, 70)
+                    }
                 }
-
-                // chick on a scale
-                ChickOnScale()
-                    .frame(width: 150, height: 150)
-                    .offset(y: 70)
-                    .scaleEffect(chickBob ? 1.04 : 0.97)
-                    .offset(y: chickBob ? -4 : 2)
+                .scaleEffect(exitScale)
+                .opacity(exitOpacity)
+                .fullScreenCover(isPresented: $trellis.offline) { OfflineScene() }
+                .onAppear {
+                    begin()
+                    startSequence()
+                }
+                .fullScreenCover(isPresented: $trellis.prompt) { ConsentScene(trellis: trellis) }
+                .onDisappear { stopAll() }
             }
-            .frame(width: 260, height: 260)
-            .scaleEffect(bgIn ? 1 : 0.8)
-            .opacity(bgIn ? 1 : 0)
-            .offset(y: -30)
-
-            // Layer 3 — logo + title entrance
-            VStack(spacing: 8) {
-                Spacer()
-                Image(systemName: "scalemass.fill")
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundColor(GR.green)
-                    .padding(14)
-                    .background(Circle().fill(GR.card))
-                    .shadow(color: GR.greenGlow, radius: 12, x: 0, y: 6)
-                    .scaleEffect(logoIn ? 1 : 0.2)
-                    .opacity(logoIn ? 1 : 0)
-                    .padding(.bottom, 4)
-                Text("Grow Rate")
-                    .font(.system(size: 38, weight: .heavy, design: .rounded))
-                    .foregroundColor(GR.text)
-                    .opacity(titleIn ? 1 : 0)
-                    .offset(y: titleIn ? 0 : 16)
-                Text("Weigh it, feed it, profit.")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundColor(GR.orangeActive)
-                    .opacity(titleIn ? 1 : 0)
-                    .offset(y: titleIn ? 0 : 12)
-                    .padding(.bottom, 70)
-            }
+            .ignoresSafeArea()
         }
-        .scaleEffect(exitScale)
-        .opacity(exitOpacity)
-        .onAppear { startSequence() }
-        .onDisappear { stopAll() }
+        .navigationViewStyle(StackNavigationViewStyle())
     }
+    
+    private func begin() {
+        NotificationCenter.default.publisher(for: .sapIn)
+            .compactMap { $0.userInfo?["conversionData"] as? [String: Any] }
+            .sink { trellis.sap($0) }
+            .store(in: &pipes)
+        NotificationCenter.default.publisher(for: .rootsIn)
+            .compactMap { $0.userInfo?["deeplinksData"] as? [String: Any] }
+            .sink { trellis.roots($0) }
+            .store(in: &pipes)
 
-    // MARK: Animation control
+        watch.pathUpdateHandler = { path in
+            let live = path.status == .satisfied
+            Task { @MainActor in trellis.net(live) }
+        }
+        watch.start(queue: DispatchQueue.global(qos: .background))
+
+        trellis.wake()
+    }
 
     private func startSequence() {
         guard isVisible else { return }
@@ -128,18 +168,6 @@ struct SplashView: View {
         // Phase 3 (1.4–2.2s): logo + title spring in
         withAnimation(GR.spring.delay(1.4)) { logoIn = true }
         withAnimation(GR.spring.delay(1.7)) { titleIn = true }
-
-        // Phase 4 (2.3–2.7s): designed exit (single coordinator, ≤2 levels)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.3) {
-            guard isVisible else { return }
-            withAnimation(.easeIn(duration: 0.4)) {
-                exitScale = 1.25
-                exitOpacity = 0
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.38) {
-                onFinish()
-            }
-        }
     }
 
     private func stopAll() {
@@ -221,4 +249,81 @@ private struct Triangle: Shape {
         p.closeSubpath()
         return p
     }
+}
+
+struct ConsentScene: View {
+    let trellis: Trellis
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                banner(geo.size)
+                VStack(spacing: 12) { Spacer(); copy; controls }.padding(.bottom, 24)
+            }
+        }
+        .ignoresSafeArea()
+        .preferredColorScheme(.dark)
+    }
+
+    private func banner(_ size: CGSize) -> some View {
+        Image(size.width > size.height ? "growingsl" : "growings")
+            .resizable()
+            .scaledToFill()
+            .frame(width: size.width, height: size.height)
+            .opacity(0.94)
+            .ignoresSafeArea()
+    }
+
+    private var copy: some View {
+        VStack(spacing: 12) {
+            Text("ALLOW NOTIFICATIONS ABOUT BONUSES AND PROMOS")
+                .font(.system(size: 24, weight: .black, design: .monospaced))
+                .foregroundColor(.white)
+            Text("STAY TUNED WITH BEST OFFERS FROM OUR CASINO")
+                .font(.system(size: 15, weight: .bold, design: .monospaced))
+                .foregroundColor(.white.opacity(0.7))
+        }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 12)
+    }
+
+    private var controls: some View {
+        VStack(spacing: 12) {
+            Button { trellis.allow() } label: {
+                Image("growsbt").resizable().frame(width: 300, height: 55)
+            }
+            Button { trellis.deny() } label: {
+                Text("SKIP")
+                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+        }
+        .padding(.horizontal, 12)
+    }
+}
+
+struct OfflineScene: View {
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                Image(geometry.size.width > geometry.size.height ? "growings_app_error_bgl" : "growings_app_error_bg")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .ignoresSafeArea()
+                    .opacity(0.65)
+                    .blur(radius: 3.5)
+                
+                Image("grows_app_error_image")
+                    .resizable()
+                    .frame(width: 255, height: 245)
+            }
+        }
+        .ignoresSafeArea()
+    }
+    
 }

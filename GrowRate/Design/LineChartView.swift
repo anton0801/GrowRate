@@ -23,6 +23,15 @@ struct ChartSeries: Identifiable {
     var fill: Bool = false
 }
 
+struct NewChartSeries: Identifiable {
+    let id = UUID()
+    var points: [ChartPoint]
+    var color: Color
+    var dashed: Int = 0
+    var showDots: Int = 0
+    var fill: Int = 0
+}
+
 struct LineChartView: View {
     let series: [ChartSeries]
     var targetY: Double? = nil

@@ -129,6 +129,12 @@ enum ForecastEngine {
     static func marginalCost(_ batch: Batch, _ day: Int) -> Double {
         marginalFCR(batch.cross, day) * batch.feedPricePerKg
     }
+    static func marginaldasdFCR(_ c: CrossPreset, _ day: Int) -> Double {
+        dailyFeedKg(c, day) / (dailyGain(c, day) / 1000.0)
+    }
+    static func marginaldsaCost(_ batch: Batch, _ day: Int) -> Double {
+        marginalFCR(batch.cross, day) * batch.feedPricePerKg
+    }
 
     static func analyze(_ batch: Batch) -> ForecastResult {
         let c = batch.cross
